@@ -7,12 +7,24 @@ export type RunsConfig = {
   runsDir: string;
 };
 
+export type RunModelScore = {
+  modelId: string;
+  overallScoreMean: number | null;
+  completed: number;
+  totalQuestions: number;
+  failures: number;
+  autoFailCount: number;
+};
+
 export type RunListItem = {
   runId: string;
   createdAt?: string;
   datasetPath?: string;
   judgeModel?: string;
+  judgeResolvedModel?: string;
+  judgeMultipleModels?: boolean;
   modelsCount?: number;
+  modelScores?: RunModelScore[];
   summaryAvailable: boolean;
   reportAvailable: boolean;
 };
@@ -58,6 +70,8 @@ export type RunSummary = {
   judge?: {
     model?: string;
     provider?: string;
+    resolvedModel?: string;
+    resolvedModels?: Array<{ model: string; count: number }>;
   };
   models: SummaryModelBreakdown[];
 };
@@ -91,7 +105,17 @@ export async function listRuns(config: RunsConfig): Promise<RunListItem[]> {
         createdAt: summary?.createdAt,
         datasetPath: summary?.datasetPath,
         judgeModel: summary?.judge?.model,
+        judgeResolvedModel: summary?.judge?.resolvedModel,
+        judgeMultipleModels: (summary?.judge?.resolvedModels?.length ?? 0) > 1,
         modelsCount: summary?.models?.length,
+        modelScores: summary?.models?.map((m) => ({
+          modelId: m.modelId,
+          overallScoreMean: m.overallScoreMean ?? null,
+          completed: m.completed,
+          totalQuestions: m.totalQuestions,
+          failures: m.failures,
+          autoFailCount: m.autoFailCount,
+        })),
         summaryAvailable: Boolean(summaryStat?.isFile()),
         reportAvailable: Boolean(reportStat?.isFile()),
       };
@@ -141,6 +165,15 @@ export async function readRunSummary(config: RunsConfig, runId: string): Promise
               typeof (obj.judge as Record<string, unknown>).provider === "string"
                 ? ((obj.judge as Record<string, unknown>).provider as string)
                 : undefined,
+            resolvedModel:
+              typeof (obj.judge as Record<string, unknown>).resolvedModel === "string"
+                ? ((obj.judge as Record<string, unknown>).resolvedModel as string)
+                : undefined,
+            resolvedModels: Array.isArray(
+              (obj.judge as Record<string, unknown>).resolvedModels,
+            )
+              ? ((obj.judge as Record<string, unknown>).resolvedModels as Array<{ model: string; count: number }>)
+              : undefined,
           }
         : undefined,
     models: models as SummaryModelBreakdown[],

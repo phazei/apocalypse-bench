@@ -10,6 +10,9 @@ import {
 
 import { createOpenRouterClient } from '../adapters/openrouter/client';
 import { createOllamaClient } from '../adapters/ollama/client';
+import { createOpenAIClient } from '../adapters/openai/client';
+import { createLMStudioClient } from '../adapters/lmstudio/client';
+import { createAnthropicClient } from '../adapters/anthropic/client';
 import { loadConfig } from '../core/config/loadConfig';
 import type { ApocbenchConfig } from '../core/config/schema';
 import { expandDatasetPaths, loadJsonl, loadJsonlMany } from '../core/dataset/loadJsonl';
@@ -125,11 +128,54 @@ async function runCommand(
       return openrouter(m.model, { usage: { include: true } });
     }
 
+    if (m.router === 'openai') {
+      const apiKey = config.routers.openai?.apiKeyEnv
+        ? process.env[config.routers.openai.apiKeyEnv] || undefined
+        : undefined;
+      const openai = createOpenAIClient({
+        apiKey,
+        baseUrl: config.routers.openai!.baseUrl,
+      });
+      return openai(m.model);
+    }
+
+    if (m.router === 'lmstudio') {
+      const apiKey = config.routers.lmstudio?.apiKeyEnv
+        ? process.env[config.routers.lmstudio.apiKeyEnv] || undefined
+        : undefined;
+      const lmstudio = createLMStudioClient({
+        apiKey,
+        baseUrl: config.routers.lmstudio!.baseUrl,
+      });
+      return lmstudio(m.model);
+    }
+
     const ollama = createOllamaClient({ baseUrl: config.routers.ollama.baseUrl });
     return ollama(m.model);
   };
 
   const resolveJudgeModel = () => {
+    if (config.judge.router === 'lmstudio') {
+      const apiKey = config.routers.lmstudio?.apiKeyEnv
+        ? process.env[config.routers.lmstudio.apiKeyEnv] || undefined
+        : undefined;
+      const lmstudio = createLMStudioClient({
+        apiKey,
+        baseUrl: config.routers.lmstudio!.baseUrl,
+      });
+      return lmstudio(config.judge.model);
+    }
+
+    if (config.judge.router === 'anthropic') {
+      const apiKey = config.routers.anthropic?.apiKeyEnv
+        ? process.env[config.routers.anthropic.apiKeyEnv]
+        : undefined;
+      if (!apiKey) die(`missing env var: ${config.routers.anthropic?.apiKeyEnv}`);
+      const anthropic = createAnthropicClient({ apiKey });
+      return anthropic(config.judge.model);
+    }
+
+    // Default: openrouter
     const apiKey = process.env[config.routers.openrouter.apiKeyEnv];
     if (!apiKey) die(`missing env var: ${config.routers.openrouter.apiKeyEnv}`);
     const openrouter = createOpenRouterClient({

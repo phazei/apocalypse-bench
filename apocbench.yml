@@ -21,19 +21,15 @@ candidate:
   maxTokens: 4000
 
 judge:
-  # router: 'openrouter'
-  # model: 'google/gemini-3-flash-preview'
-  # provider: 'google-ai-studio'
-  # temperature: null
-  # maxTokens: 16000
-  # structured: true
+  # Using the free models router - automatically selects from available free models
+  # Previous attempts: google/gemini-3-flash-preview, xiaomi/mimo-v2-flash:free
   router: 'openrouter'
-  model: 'xiaomi/mimo-v2-flash:free'
-  provider: 'xiaomi/fp8'
+  model: 'openrouter/free'
+  # provider omitted - let the router automatically select
   temperature: null
   maxTokens: 16000
   structured: true
-  reasoning: true
+  reasoning: false  # Not all free models support reasoning
 
 routers:
   ollama:

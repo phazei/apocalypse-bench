@@ -53,22 +53,37 @@ export function renderHtmlReport(params: {
         ${row('datasetPath', string(summaryJson?.datasetPath))}
         ${row('datasetSha256', string(summaryJson?.datasetSha256))}
         ${row('promptTemplateHash', string((summaryJson as Record<string, unknown>)?.promptTemplateHash))}
-        ${row(
-          'judge',
-          (() => {
+        ${(() => {
             const judge =
               summaryJson && typeof summaryJson === 'object'
                 ? (summaryJson as Record<string, unknown>).judge
                 : null;
 
-            if (!judge || typeof judge !== 'object') return null;
+            if (!judge || typeof judge !== 'object') return '';
             const judgeObj = judge as Record<string, unknown>;
-            const model = string(judgeObj.model);
-            if (!model) return null;
-            const provider = string(judgeObj.provider);
-            return provider ? `${model} (${provider})` : model;
-          })(),
-        )}
+            const model = typeof judgeObj.model === 'string' ? judgeObj.model : null;
+            if (!model) return '';
+            const provider = typeof judgeObj.provider === 'string' ? judgeObj.provider : null;
+            const resolved = typeof judgeObj.resolvedModel === 'string' ? judgeObj.resolvedModel : null;
+            const resolvedModels = Array.isArray(judgeObj.resolvedModels)
+              ? (judgeObj.resolvedModels as Array<{ model: string; count: number }>)
+              : null;
+
+            let display = `<code>${escapeHtml(resolved && resolved !== model ? resolved : model)}</code>`;
+            if (resolved && resolved !== model) {
+              display += ` <span class="muted">(via ${escapeHtml(model)})</span>`;
+            } else if (provider) {
+              display += ` <span class="muted">(${escapeHtml(provider)})</span>`;
+            }
+            if (resolvedModels && resolvedModels.length > 1) {
+              const total = resolvedModels.reduce((s, m) => s + m.count, 0);
+              const details = resolvedModels
+                .map((m) => `<code>${escapeHtml(m.model)}</code> (${m.count}/${total})`)
+                .join(', ');
+              display += `<br/><span class="muted" style="font-size:0.85em">⚠ Multiple models used: ${details}</span>`;
+            }
+            return `<div class="muted">judge</div><div>${display}</div>`;
+          })()}
       </div>
       <div class="muted" style="margin-top: 8px">
         Note: prompts and completions may contain sensitive data.
@@ -180,6 +195,17 @@ function renderResultsSection(results: Record<string, unknown>[]): string {
                     ? r.candidate_completion
                     : null;
 
+                const judgeResponse =
+                  typeof r.judge_response_json === 'string'
+                    ? safeJsonParse(r.judge_response_json)
+                    : null;
+                const judgeActualModel =
+                  isObjectRecord(judgeResponse) &&
+                  isObjectRecord(judgeResponse.response) &&
+                  typeof judgeResponse.response.modelId === 'string'
+                    ? judgeResponse.response.modelId
+                    : null;
+
                 const judgeParsed =
                   typeof r.judge_parsed_json === 'string'
                     ? safeJsonParse(r.judge_parsed_json)
@@ -207,6 +233,7 @@ function renderResultsSection(results: Record<string, unknown>[]): string {
                     )} score=${escapeHtml(overall)} auto_fail=${escapeHtml(autoFail)}</summary>
                     ${prompt ? `<h3>Prompt</h3><pre>${escapeHtml(prompt)}</pre>` : ''}
                     ${candidate ? `<h3>Candidate</h3><pre>${escapeHtml(candidate)}</pre>` : ''}
+                    ${judgeActualModel ? `<p class="muted" style="font-size:0.85em">Judge model: <code>${escapeHtml(judgeActualModel)}</code></p>` : ''}
                     ${judgeNotes ? `<h3>Judge notes</h3><pre>${escapeHtml(judgeNotes)}</pre>` : ''}
                     ${rubricScores ? `<h3>Judge rubric_scores</h3><pre>${escapeHtml(JSON.stringify(rubricScores, null, 2))}</pre>` : ''}
                     ${scoreRubric ? `<h3>Computed rubric scores</h3><pre>${escapeHtml(JSON.stringify(scoreRubric, null, 2))}</pre>` : ''}

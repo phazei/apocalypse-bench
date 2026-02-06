@@ -99,7 +99,7 @@ export const configSchema = z
 
     judge: z
       .object({
-        router: z.literal('openrouter'),
+        router: z.enum(['openrouter', 'lmstudio', 'anthropic']),
         model: z.string().min(1),
         provider: z.string().min(1).optional(),
         temperature: z.number().nullable().optional(),
@@ -127,6 +127,29 @@ export const configSchema = z
             default: requestDefaultsSchema,
           })
           .strict(),
+        openai: z
+          .object({
+            baseUrl: z.string().min(1),
+            apiKeyEnv: z.string().min(1).nullable().optional(),
+            default: requestDefaultsSchema,
+          })
+          .strict()
+          .optional(),
+        lmstudio: z
+          .object({
+            baseUrl: z.string().min(1),
+            apiKeyEnv: z.string().min(1).nullable().optional(),
+            default: requestDefaultsSchema,
+          })
+          .strict()
+          .optional(),
+        anthropic: z
+          .object({
+            apiKeyEnv: z.string().min(1),
+            default: requestDefaultsSchema,
+          })
+          .strict()
+          .optional(),
       })
       .strict(),
 
@@ -135,7 +158,7 @@ export const configSchema = z
         z
           .object({
             id: z.string().min(1),
-            router: z.enum(['ollama', 'openrouter']),
+            router: z.enum(['ollama', 'openrouter', 'openai', 'lmstudio']),
             model: z.string().min(1),
             provider: z.string().min(1).optional(),
             params: requestDefaultsSchema.optional(),

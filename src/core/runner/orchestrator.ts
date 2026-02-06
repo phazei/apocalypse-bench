@@ -188,6 +188,48 @@ function createQueues(params: { config: ApocbenchConfig; models: ModelEntry[] })
   return { judgeQueue, perModelQueue };
 }
 
+/**
+ * Scan judge responses stored in the DB and return info about the actual model(s) that served requests.
+ * This resolves routers like `openrouter/free` to the real model(s) that were used.
+ */
+function extractResolvedJudgeModelsFromDb(
+  db: RunnerDb,
+  runId: string,
+): { primary: string; all: Array<{ model: string; count: number }> } | null {
+  const rows = db
+    .prepare(
+      `SELECT judge_response_json FROM model_results WHERE run_id = ? AND judge_response_json IS NOT NULL AND status = 'done'`,
+    )
+    .all(runId) as Array<{ judge_response_json: string }>;
+
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    try {
+      const parsed = JSON.parse(row.judge_response_json);
+      const modelId = parsed?.response?.modelId;
+      if (typeof modelId === 'string' && modelId.length > 0) {
+        counts.set(modelId, (counts.get(modelId) ?? 0) + 1);
+      }
+    } catch {
+      // skip malformed JSON
+    }
+  }
+
+  if (counts.size === 0) return null;
+
+  const all = Array.from(counts.entries())
+    .map(([model, count]) => ({ model, count }))
+    .sort((a, b) => b.count - a.count);
+
+  return { primary: all[0].model, all };
+}
+
+function extractResolvedModelId(raw: unknown): string | null {
+  const r = raw as { response?: { modelId?: unknown } } | null | undefined;
+  const modelId = r?.response?.modelId;
+  return typeof modelId === 'string' && modelId.length > 0 ? modelId : null;
+}
+
 function extractOpenRouterGenerationId(result: unknown): string | null {
   const responseId = (result as { response?: { id?: unknown } } | null | undefined)
     ?.response?.id;
@@ -379,9 +421,13 @@ async function handleJudgeQuestion(params: {
       });
     }
 
+    // Extract the actual model ID that served the request (useful when using routers like openrouter/free)
+    const resolvedJudgeModelId = extractResolvedModelId(raw);
+
     const redactedRequest = redactSecrets({
       model: config.judge.model,
       provider: config.judge.provider,
+      ...(resolvedJudgeModelId ? { resolvedModel: resolvedJudgeModelId } : {}),
     });
 
     db.transaction(() => {
@@ -838,13 +884,27 @@ export async function runBenchmark(params: {
   const modelIds = models.map((m) => m.id);
   const summaries = computeModelSummaries({ db, runId, modelIds });
 
+  // Determine the actual model(s) that served judge requests (resolves routers like openrouter/free)
+  const resolvedJudge = extractResolvedJudgeModelsFromDb(db, runId);
+
   const summary = {
     runId,
     createdAt: new Date().toISOString(),
     datasetPath: datasetAbsolutePath,
     datasetSha256: datasetSha,
     promptTemplateHash: templateHash,
-    judge: { model: config.judge.model, provider: config.judge.provider },
+    judge: {
+      model: config.judge.model,
+      provider: config.judge.provider,
+      ...(resolvedJudge
+        ? {
+            resolvedModel: resolvedJudge.primary,
+            ...(resolvedJudge.all.length > 1
+              ? { resolvedModels: resolvedJudge.all }
+              : {}),
+          }
+        : {}),
+    },
     models: summaries,
   };
 

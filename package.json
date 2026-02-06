@@ -26,6 +26,8 @@
   },
   "packageManager": "pnpm@10.23.0",
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.37",
+    "@ai-sdk/openai-compatible": "^2.0.27",
     "@ai-sdk/provider-utils": "^3.0.19",
     "@openrouter/ai-sdk-provider": "^1.5.4",
     "@stricli/core": "^1.2.4",
@@ -34,6 +36,7 @@
     "dotenv": "^17.2.3",
     "ink": "^6.5.1",
     "ollama-ai-provider-v2": "^1.5.5",
+    "openai": "^6.18.0",
     "p-queue": "^9.0.1",
     "pino": "^10.1.0",
     "react": "^19.2.3",
